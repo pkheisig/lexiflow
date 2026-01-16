@@ -1,0 +1,5 @@
+build/
+.DS_Store
+*.icns
+nanobanana-output/
+temp_icon.png
