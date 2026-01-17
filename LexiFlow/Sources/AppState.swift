@@ -60,8 +60,17 @@ class AppState: ObservableObject {
     // List Mode State
     @Published var listModeCards: [Card] = []
     @Published var revealedCardIDs: Set<UUID> = []
-    @Published var starredCardKeys: Set<String> = []  // Uses term+definition as stable key
-    @Published var starredCards: [Card] = []  // Stores actual card data for favorites
+    @Published var starredCardKeys: Set<String> = [] {  // Uses term+definition as stable key
+        didSet {
+            UserDefaults.standard.set(Array(starredCardKeys), forKey: "starredCardKeys")
+        }
+    }
+    @Published var starredCards: [Card] = [] {  // Stores actual card data for favorites
+        didSet {
+            let data = starredCards.map { ["term": $0.term, "definition": $0.definition] }
+            UserDefaults.standard.set(data, forKey: "starredCards")
+        }
+    }
     @Published var searchQuery: String = ""
     
     // Setup State
@@ -97,6 +106,17 @@ class AppState: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: "recentDecks"),
            let decks = try? JSONDecoder().decode([RecentDeck].self, from: data) {
             self.recentDecks = decks
+        }
+        
+        if let keys = UserDefaults.standard.array(forKey: "starredCardKeys") as? [String] {
+            self.starredCardKeys = Set(keys)
+        }
+        
+        if let cardsData = UserDefaults.standard.array(forKey: "starredCards") as? [[String: String]] {
+            self.starredCards = cardsData.compactMap {
+                guard let term = $0["term"], let def = $0["definition"] else { return nil }
+                return Card(term: term, definition: def)
+            }
         }
     }
     
