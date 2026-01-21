@@ -479,8 +479,13 @@ struct CardListView: View {
                 }
                 .buttonStyle(HoverButtonStyle())
                 
+                Button(action: { appState.resetListOrder() }) {
+                    Label("Reset Order", systemImage: "arrow.counterclockwise")
+                }
+                .buttonStyle(HoverButtonStyle())
+                
                 Button(action: { appState.resetListMode() }) {
-                    Label("Reset", systemImage: "arrow.counterclockwise")
+                    Label("Hide All", systemImage: "eye.slash")
                 }
                 .buttonStyle(HoverButtonStyle())
                 
@@ -563,10 +568,10 @@ struct CardListView: View {
                     if appState.sidebarSelection == .list && !appState.isSetupMode {
                         if event.keyCode == 125 { // Down arrow
                             handleDownArrow()
-                            return event
+                            return nil // Consume event to prevent native List from also moving
                         } else if event.keyCode == 126 { // Up arrow
                             handleUpArrow()
-                            return event
+                            return nil // Consume event to prevent native List from also moving
                         }
                     }
                     return event
@@ -582,12 +587,8 @@ struct CardListView: View {
         
         if let currentSelection = selection,
            let currentIndex = cards.firstIndex(where: { $0.id == currentSelection }) {
-            // If current row is not revealed, reveal it (don't move yet)
-            if !appState.revealedCardIDs.contains(currentSelection) {
-                withAnimation { appState.revealedCardIDs.insert(currentSelection) }
-                return
-            }
-            // Current row is revealed, move to next
+            // Reveal current row and move to next
+            withAnimation { appState.revealedCardIDs.insert(currentSelection) }
             let nextIndex = currentIndex + 1
             if nextIndex < cards.count {
                 selection = cards[nextIndex].id
@@ -703,8 +704,8 @@ struct KeyboardHelpView: View {
                     ShortcutRow(keys: "← →", action: "Previous / Next card")
                 }
                 Section("List Mode") {
-                    ShortcutRow(keys: "↓", action: "Reveal current, move down")
-                    ShortcutRow(keys: "↑", action: "Re-blur current, move up")
+                    ShortcutRow(keys: "↓", action: "Reveal current & move down")
+                    ShortcutRow(keys: "↑", action: "Hide current & move up")
                     ShortcutRow(keys: "Click definition", action: "Toggle reveal")
                 }
                 Section("General") {

@@ -59,6 +59,14 @@ class AppState: ObservableObject {
     
     // List Mode State
     @Published var listModeCards: [Card] = []
+    @Published var originalListOrder: [Card] = []  // Stores original order for reset
+    @Published var deckCardOrders: [String: [String]] = [:] {  // Persists shuffled order per deck path (stores card keys)
+        didSet {
+            if let data = try? JSONEncoder().encode(deckCardOrders) {
+                UserDefaults.standard.set(data, forKey: "deckCardOrders")
+            }
+        }
+    }
     @Published var revealedCardIDs: Set<UUID> = []
     @Published var starredCardKeys: Set<String> = [] {  // Uses term+definition as stable key
         didSet {
@@ -117,6 +125,11 @@ class AppState: ObservableObject {
                 guard let term = $0["term"], let def = $0["definition"] else { return nil }
                 return Card(term: term, definition: def)
             }
+        }
+        
+        if let data = UserDefaults.standard.data(forKey: "deckCardOrders"),
+           let orders = try? JSONDecoder().decode([String: [String]].self, from: data) {
+            self.deckCardOrders = orders
         }
     }
     
@@ -287,9 +300,31 @@ class AppState: ObservableObject {
             }
         }
         self.allCards = newCards
-        self.listModeCards = newCards
+        self.originalListOrder = newCards
+        
+        // Apply saved order if exists
+        if let savedOrder = deckCardOrders[csvPath], !savedOrder.isEmpty {
+            let cardsByKey = Dictionary(uniqueKeysWithValues: newCards.map { (cardKey($0), $0) })
+            var orderedCards: [Card] = []
+            for key in savedOrder {
+                if let card = cardsByKey[key] {
+                    orderedCards.append(card)
+                }
+            }
+            // Add any new cards not in saved order
+            for card in newCards where !savedOrder.contains(cardKey(card)) {
+                orderedCards.append(card)
+            }
+            self.listModeCards = orderedCards
+            self.activeCards = orderedCards
+        } else {
+            self.listModeCards = newCards
+            self.activeCards = newCards
+        }
+        
         self.isSetupMode = false
-        self.restartSession()
+        self.currentIndex = 0
+        self.resetCardState()
     }
     
     func shuffleCards() {
@@ -299,10 +334,19 @@ class AppState: ObservableObject {
     }
     
     func shuffleListMode() {
-        withAnimation {
-            listModeCards.shuffle()
-            revealedCardIDs = []
+        listModeCards.shuffle()
+        activeCards = listModeCards
+        currentIndex = 0
+        deckCardOrders[csvPath] = listModeCards.map { cardKey($0) }
+    }
+    
+    func resetListOrder() {
+        listModeCards = originalListOrder.map { orig in
+            listModeCards.first { $0.term == orig.term && $0.definition == orig.definition } ?? orig
         }
+        activeCards = listModeCards
+        currentIndex = 0
+        deckCardOrders.removeValue(forKey: csvPath)
     }
     
     func resetListMode() {
@@ -370,8 +414,7 @@ class AppState: ObservableObject {
     }
     
     func restartSession() {
-        activeCards = allCards
-        listModeCards = allCards
+        activeCards = listModeCards
         revealedCardIDs = []
         currentIndex = 0
         resetCardState()
